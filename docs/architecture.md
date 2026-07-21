@@ -225,7 +225,7 @@ precondition at send time.
 
 ## 8. Security summary
 
-Argon2id-hashed admin credentials + iron-session cookies, CSRF-safe same-site strict, RBAC
+scrypt-hashed admin credentials + HMAC-signed HttpOnly cookies, CSRF-safe SameSite=Strict, RBAC
 (ADMIN vs OPERATOR — only ADMIN can reverse suppression or change compliance settings), all
 inbound webhook payloads verified (Postmark webhook auth token), signed HMAC unsubscribe
 tokens (no DB lookup needed to honour an unsubscribe even under DB pressure — token embeds

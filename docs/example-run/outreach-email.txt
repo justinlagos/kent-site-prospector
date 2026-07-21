@@ -1,0 +1,23 @@
+Hello Castle Dentist Limited team,
+
+I came across Castle Dentist Limited while reviewing dentists businesses in Maidstone. You already have an established web presence. I also noticed that the current site doesn't adapt for mobile screens, where most local searches happen.
+
+I put together a short, independent landing-page concept showing how the customer journey could be made clearer, particularly around getting in touch. It's a private, unindexed demonstration — not connected to your official website — and there's no obligation of any kind.
+
+If the direction looks useful, I'd be happy to explain what I changed and what a complete version would involve.
+
+You can view the private concept here:
+https://concept-6uxy9toxjpbt.netlify.example/
+
+This is only a design proposal and is not connected to your official website. There is no obligation to use it. You're receiving this one-off email because Castle Dentist Limited publishes this business contact address; we contacted you as a corporate subscriber about a service relevant to your business.
+
+Regards,
+
+Alex Example
+Example Web Studio
+https://example-web-studio.example.com
+01622 000000
+1 Example Lane, Maidstone, Kent ME14 1XX
+
+Not relevant? Opt out here (one click, permanent): http://localhost:3000/api/unsubscribe?token=eyJlIjoiaW5mb0BjYXN0bGUtZGVudGlzdHMtNS5leGFtcGxlLmNvbSIsImIiOiJjbXJ2ODdhOHEwMDB2N2RlNzE3cThsd2J0In0.KZEDTuz6be890L-irnBrU0Osx58rSkGysr0xdj3bGnc
+

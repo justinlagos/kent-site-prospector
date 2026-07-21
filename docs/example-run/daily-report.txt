@@ -1,0 +1,9 @@
+KENT SITE PROSPECTOR — Daily report 2026-07-21
+Territory: Maidstone | Category: Dentists
+Discovered: 9 | Rejected: 4 | Emails sent: 0
+Rejections: existing website is already strong (low opportunity) (4)
+Selected:
+  - Castle Dentist Limited | score 90 | https://concept-6uxy9toxjpbt.netlify.example/ | email SCHEDULED
+  - Oakwood Dentist Ltd | score 89 | https://concept-flxxcmozmneo.netlify.example/ | email SCHEDULED
+Replies: 0 | Opt-outs: 0 | Conversion changes: 0
+Errors: none
