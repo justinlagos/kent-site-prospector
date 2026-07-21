@@ -1,0 +1,576 @@
+// Kent Site Prospector — canonical data model.
+// Safety invariants enforced here (unique idempotency keys, dedup fingerprints,
+// unique slugs) are what make the pipeline unable to double-send or re-import.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Territory & categories
+// ---------------------------------------------------------------------------
+
+enum TerritoryStatus {
+  PENDING
+  ACTIVE
+  EXHAUSTED
+  PAUSED
+}
+
+model Territory {
+  id              String          @id @default(cuid())
+  localAuthority  String
+  town            String
+  district        String?
+  outwardPostcode String
+  priority        Int             @default(100)
+  status          TerritoryStatus @default(PENDING)
+  lastScannedAt   DateTime?
+  nextScanAt      DateTime?
+  discoveredCount Int             @default(0)
+  qualifiedCount  Int             @default(0)
+  contactedCount  Int             @default(0)
+  convertedCount  Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  businesses Business[]
+  scans      TerritoryCategoryScan[]
+
+  @@unique([town, outwardPostcode])
+  @@index([status, priority])
+}
+
+enum CategoryStatus {
+  ACTIVE
+  PAUSED
+  EXCLUDED
+}
+
+model Category {
+  id            String         @id @default(cuid())
+  key           String         @unique // e.g. "dentists"
+  label         String
+  providerTypes String[] // Google Places includedTypes
+  strategyKey   String // industry conversion-strategy module key
+  status        CategoryStatus @default(ACTIVE)
+  priority      Int            @default(100)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  businesses Business[]
+  scans      TerritoryCategoryScan[]
+}
+
+enum ScanStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  SKIPPED
+}
+
+/// The rotation queue: one row per (territory, category) pairing, ordered by position.
+model TerritoryCategoryScan {
+  id              String     @id @default(cuid())
+  territoryId     String
+  categoryId      String
+  position        Int
+  status          ScanStatus @default(PENDING)
+  scannedAt       DateTime?
+  discoveredCount Int        @default(0)
+  qualifiedCount  Int        @default(0)
+  contactedCount  Int        @default(0)
+  createdAt       DateTime   @default(now())
+
+  territory Territory @relation(fields: [territoryId], references: [id])
+  category  Category  @relation(fields: [categoryId], references: [id])
+
+  @@unique([territoryId, categoryId])
+  @@index([status, position])
+}
+
+// ---------------------------------------------------------------------------
+// Businesses & contacts
+// ---------------------------------------------------------------------------
+
+enum LegalForm {
+  LTD
+  LLP
+  PLC
+  CHARITY
+  SOLE_TRADER
+  PARTNERSHIP
+  PUBLIC_BODY
+  UNKNOWN
+}
+
+enum BusinessStatus {
+  DISCOVERED
+  VERIFIED
+  AUDITED
+  SCORED
+  QUALIFIED
+  SELECTED
+  CONTACTED
+  REPLIED
+  CONVERTED
+  DISQUALIFIED
+  SUPPRESSED
+  ANONYMISED
+}
+
+model Business {
+  id               String         @id @default(cuid())
+  name             String
+  tradingName      String?
+  legalName        String?
+  companyNumber    String?
+  legalForm        LegalForm      @default(UNKNOWN)
+  companyStatus    String?
+  categoryId       String
+  territoryId      String
+  address          String
+  town             String
+  postcode         String
+  phone            String?
+  website          String?
+  primaryEmail     String?
+  socialProfiles   Json?
+  googleProfileUrl String?
+  providerPlaceId  String?
+  reviewCount      Int?
+  reviewRating     Float?
+  openingHours     Json?
+  services         Json?
+  discoverySource  String
+  sourceUrl        String?
+  confidence       String         @default("MEDIUM")
+  dedupFingerprint String
+  status           BusinessStatus @default(DISCOVERED)
+  isChain          Boolean        @default(false)
+  discoveredAt     DateTime       @default(now())
+  lastVerifiedAt   DateTime?
+  updatedAt        DateTime       @updatedAt
+
+  category          Category           @relation(fields: [categoryId], references: [id])
+  territory         Territory          @relation(fields: [territoryId], references: [id])
+  contacts          Contact[]
+  audits            WebsiteAudit[]
+  scores            ProspectScore[]
+  complianceRecords ComplianceRecord[]
+  assets            Asset[]
+  concepts          Concept[]
+  outreachEmails    OutreachEmail[]
+  conversions       Conversion[]
+  suppressions      Suppression[]
+
+  @@unique([discoverySource, providerPlaceId])
+  @@unique([dedupFingerprint])
+  @@index([status])
+  @@index([town, postcode])
+  @@index([categoryId, territoryId])
+}
+
+enum EmailType {
+  GENERIC
+  ROLE
+  PERSONAL
+}
+
+enum ValidationStatus {
+  UNVERIFIED
+  VALID
+  INVALID
+  RISKY
+}
+
+model Contact {
+  id               String           @id @default(cuid())
+  businessId       String
+  name             String?
+  role             String?
+  email            String
+  emailType        EmailType
+  validationStatus ValidationStatus @default(UNVERIFIED)
+  validationDetail String?
+  source           String
+  lastVerifiedAt   DateTime?
+  createdAt        DateTime         @default(now())
+
+  business       Business        @relation(fields: [businessId], references: [id])
+  outreachEmails OutreachEmail[]
+
+  @@unique([businessId, email])
+  @@index([email])
+}
+
+// ---------------------------------------------------------------------------
+// Audits & scoring
+// ---------------------------------------------------------------------------
+
+model WebsiteAudit {
+  id               String   @id @default(cuid())
+  businessId       String
+  auditDate        DateTime @default(now())
+  hasWebsite       Boolean
+  robotsAllowed    Boolean  @default(true)
+  technicalScore   Int
+  designScore      Int
+  conversionScore  Int
+  contentScore     Int
+  seoScore         Int
+  trustScore       Int
+  opportunityScore Int
+  findingsJson     Json
+  evidenceJson     Json
+  screenshotPaths  Json?
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, auditDate])
+}
+
+model ProspectScore {
+  id                     String   @id @default(cuid())
+  businessId             String
+  totalScore             Int
+  scoringVersion         String
+  componentScores        Json
+  disqualified           Boolean  @default(false)
+  disqualificationReason String?
+  calculatedAt           DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, calculatedAt])
+  @@index([disqualified, totalScore])
+}
+
+// ---------------------------------------------------------------------------
+// Compliance & suppression
+// ---------------------------------------------------------------------------
+
+enum ComplianceDecision {
+  CORPORATE_APPROVED
+  CONSENT_REQUIRED
+  MANUAL_REVIEW_REQUIRED
+  DO_NOT_CONTACT
+  SUPPRESSED
+  IDENTITY_UNCONFIRMED
+  EMAIL_UNVERIFIED
+}
+
+enum LawfulBasis {
+  LEGITIMATE_INTERESTS
+  CONSENT
+  NONE
+}
+
+model ComplianceRecord {
+  id                             String             @id @default(cuid())
+  businessId                     String
+  legalForm                      LegalForm
+  decision                       ComplianceDecision
+  lawfulBasis                    LawfulBasis        @default(NONE)
+  legitimateInterestAssessmentId String?
+  privacyNoticeVersion           String?
+  sourceOfPersonalData           String
+  decisionReason                 String
+  checkedAt                      DateTime           @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, checkedAt])
+}
+
+enum SuppressionReason {
+  UNSUBSCRIBED
+  COMPLAINT
+  HARD_BOUNCE
+  OBJECTION
+  MANUAL
+  LEGAL
+}
+
+model Suppression {
+  id         String            @id @default(cuid())
+  email      String?
+  domain     String?
+  businessId String?
+  reason     SuppressionReason
+  source     String
+  note       String?
+  createdAt  DateTime          @default(now())
+  reversedAt DateTime?
+  reversedBy String?
+
+  business Business? @relation(fields: [businessId], references: [id])
+
+  @@index([email])
+  @@index([domain])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// Assets & concepts
+// ---------------------------------------------------------------------------
+
+enum AssetRightsStatus {
+  BUSINESS_OWNED_AND_PERMISSION_CONFIRMED
+  LICENSED_STOCK
+  PROVIDED_BY_OPERATOR
+  GENERATED
+  PLACEHOLDER
+  REFERENCE_ONLY
+  PROHIBITED
+}
+
+model Asset {
+  id                     String            @id @default(cuid())
+  businessId             String
+  source                 String
+  sourceUrl              String?
+  licenceType            String?
+  rightsStatus           AssetRightsStatus
+  businessOwned          Boolean           @default(false)
+  intendedUse            String
+  localPath              String?
+  attributionRequirement String?
+  expiryDate             DateTime?
+  createdAt              DateTime          @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, rightsStatus])
+}
+
+enum ConceptStatus {
+  DRAFT
+  QA_FAILED
+  QA_PASSED
+  DEPLOYED
+  EXPIRED
+  UNPUBLISHED
+}
+
+model Concept {
+  id             String        @id @default(cuid())
+  businessId     String
+  version        Int           @default(1)
+  status         ConceptStatus @default(DRAFT)
+  slug           String        @unique
+  contentJson    Json
+  htmlPath       String?
+  repositoryPath String?
+  previewUrl     String?
+  deploymentId   String?
+  siteId         String?
+  buildLogs      String?
+  deployedAt     DateTime?
+  expiresAt      DateTime?
+  screenshots    Json?
+  qaResults      Json?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  business       Business        @relation(fields: [businessId], references: [id])
+  outreachEmails OutreachEmail[]
+
+  @@index([businessId, version])
+  @@index([status, expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Outreach
+// ---------------------------------------------------------------------------
+
+enum OutreachStatus {
+  DRAFT
+  QUEUED
+  SCHEDULED
+  SENT
+  DELIVERED
+  BOUNCED
+  COMPLAINED
+  REPLIED
+  UNSUBSCRIBED
+  CANCELLED
+  BLOCKED
+}
+
+model OutreachEmail {
+  id                String         @id @default(cuid())
+  businessId        String
+  contactId         String
+  conceptId         String?
+  sequence          Int            @default(1)
+  idempotencyKey    String         @unique
+  subject           String
+  bodyText          String
+  bodyHtml          String?
+  providerMessageId String?
+  status            OutreachStatus @default(DRAFT)
+  statusReason      String?
+  scheduledAt       DateTime?
+  sentAt            DateTime?
+  deliveredAt       DateTime?
+  openedAt          DateTime?
+  clickedAt         DateTime?
+  repliedAt         DateTime?
+  bouncedAt         DateTime?
+  unsubscribedAt    DateTime?
+  complaintAt       DateTime?
+  unsubscribeToken  String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  contact  Contact  @relation(fields: [contactId], references: [id])
+  concept  Concept? @relation(fields: [conceptId], references: [id])
+
+  @@index([status, scheduledAt])
+  @@index([businessId])
+  @@index([sentAt])
+}
+
+// ---------------------------------------------------------------------------
+// Conversions
+// ---------------------------------------------------------------------------
+
+enum ConversionStage {
+  REPLIED
+  POSITIVE_REPLY
+  MEETING
+  PROPOSAL
+  WON
+  LOST
+}
+
+model Conversion {
+  id             String          @id @default(cuid())
+  businessId     String
+  stage          ConversionStage
+  estimatedValue Decimal?        @db.Decimal(12, 2)
+  actualValue    Decimal?        @db.Decimal(12, 2)
+  notes          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId, stage])
+}
+
+// ---------------------------------------------------------------------------
+// Automation, dead letters, audit log
+// ---------------------------------------------------------------------------
+
+enum RunStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  PARTIAL
+}
+
+model AutomationRun {
+  id                 String    @id @default(cuid())
+  runDate            String // YYYY-MM-DD Europe/London
+  runType            String // "daily-pipeline" | "hourly-events" | ...
+  startedAt          DateTime  @default(now())
+  completedAt        DateTime?
+  status             RunStatus @default(RUNNING)
+  selectedBusinesses Json?
+  errors             Json?
+  logs               Json?
+
+  stages      AutomationStage[]
+  deadLetters DeadLetter[]
+
+  @@unique([runDate, runType])
+}
+
+model AutomationStage {
+  id          String    @id @default(cuid())
+  runId       String
+  name        String
+  status      RunStatus @default(RUNNING)
+  startedAt   DateTime  @default(now())
+  completedAt DateTime?
+  error       String?
+  detail      Json?
+
+  run AutomationRun @relation(fields: [runId], references: [id])
+
+  @@unique([runId, name])
+}
+
+model DeadLetter {
+  id         String    @id @default(cuid())
+  runId      String?
+  stage      String
+  payload    Json
+  error      String
+  attempts   Int       @default(1)
+  createdAt  DateTime  @default(now())
+  resolvedAt DateTime?
+
+  run AutomationRun? @relation(fields: [runId], references: [id])
+
+  @@index([resolvedAt])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String // admin email or "system"
+  action     String
+  entityType String
+  entityId   String?
+  detail     Json?
+  at         DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([at])
+}
+
+// ---------------------------------------------------------------------------
+// Admin, settings, policy documents
+// ---------------------------------------------------------------------------
+
+enum AdminRole {
+  ADMIN
+  OPERATOR
+}
+
+model AdminUser {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String
+  passwordHash String
+  role         AdminRole @default(OPERATOR)
+  createdAt    DateTime  @default(now())
+  lastLoginAt  DateTime?
+}
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+  updatedBy String?
+}
+
+model PolicyDocument {
+  id        String   @id @default(cuid())
+  key       String // "privacy-notice" | "lia" | "retention-policy" | ...
+  version   String
+  title     String
+  bodyMd    String
+  createdAt DateTime @default(now())
+  createdBy String?
+
+  @@unique([key, version])
+}
