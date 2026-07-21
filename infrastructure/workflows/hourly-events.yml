@@ -1,0 +1,25 @@
+# Copy to .github/workflows/ when hosting on GitHub Actions.
+name: KSP hourly events
+on:
+  schedule:
+    - cron: "5 8-16 * * 1-5"  # hourly through the UK working day, weekdays
+  workflow_dispatch: {}
+concurrency:
+  group: ksp-hourly
+  cancel-in-progress: false
+jobs:
+  hourly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: node apps/worker/dist/main.js --job hourly
+        env:
+          APP_ENV: production
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # ... same secret set as daily-pipeline.yml

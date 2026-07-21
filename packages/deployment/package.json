@@ -21,6 +21,7 @@
     "@ksp/research": "workspace:*",
     "@ksp/content-generation": "workspace:*",
     "@ksp/asset-management": "workspace:*",
-    "playwright": "^1.52.0"
+    "playwright": "^1.52.0",
+    "@ksp/auditing": "workspace:*"
   }
 }

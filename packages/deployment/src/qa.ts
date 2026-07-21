@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { chromium } from "playwright";
+import { launchBrowser } from "@ksp/auditing";
 import type { PrismaClient } from "@ksp/database";
 import { type AgencyIdentity, type Logger } from "@ksp/shared";
 import type { ResearchBrief } from "@ksp/research";
@@ -148,7 +148,7 @@ export async function runQaPipeline(
   const screenshotPaths: Record<string, string> = {};
   try {
     await mkdir(input.screenshotDir, { recursive: true });
-    const browser = await chromium.launch({ headless: true });
+    const browser = await launchBrowser();
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "load" });
 

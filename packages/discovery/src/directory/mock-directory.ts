@@ -25,24 +25,27 @@ function seededRandom(seed: string): () => number {
 }
 
 const FIRST_WORDS = ["Oakwood", "Riverside", "Kentish", "Harbour", "Priory", "Castle", "Meadow", "Orchard", "Weald", "Regency"];
-const LTD_SUFFIXES = [" Ltd", " Limited", "", "", ""];
 
 export class MockDirectoryAdapter implements BusinessDirectoryAdapter {
   readonly source = "mock-directory";
 
   async search(query: DirectorySearchQuery): Promise<DiscoveredBusiness[]> {
     const rand = seededRandom(`${query.town}:${query.categoryLabel}`);
-    const count = 6 + Math.floor(rand() * 6); // 6-11 businesses
+    const count = 8 + Math.floor(rand() * 4); // 8-11 businesses
     const results: DiscoveredBusiness[] = [];
 
+    // Deterministic cycles guarantee unique names and a realistic quality mix in every
+    // territory: weak sites, average sites, strong sites and no-website businesses.
+    const QUALITY_CYCLE = ["weak", "average", "weak", "strong", "none", "weak", "average", "weak", "strong", "average", "weak"] as const;
+    const SUFFIX_CYCLE = [" Ltd", " Limited", " Ltd", "", " Ltd", " Limited", " Ltd", " Ltd", "", " Limited", " Ltd"];
+
     for (let i = 0; i < count && i < query.maxResults; i++) {
-      const word = FIRST_WORDS[Math.floor(rand() * FIRST_WORDS.length)] ?? "Oakwood";
-      const suffix = LTD_SUFFIXES[Math.floor(rand() * LTD_SUFFIXES.length)] ?? "";
+      const word = FIRST_WORDS[i % FIRST_WORDS.length] ?? "Oakwood";
+      const suffix = SUFFIX_CYCLE[i % SUFFIX_CYCLE.length] ?? "";
       const name = `${word} ${query.categoryLabel.replace(/s$/, "")}${suffix}`;
       const slugBase = `${word}-${query.categoryLabel}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
-      const hasWebsite = rand() > 0.25;
-      const websiteQuality = rand(); // used by mock auditor via URL marker
-      const qualityMarker = websiteQuality < 0.5 ? "weak" : websiteQuality < 0.8 ? "average" : "strong";
+      const qualityMarker = QUALITY_CYCLE[i % QUALITY_CYCLE.length] ?? "weak";
+      const hasWebsite = qualityMarker !== "none";
       const inward = `${1 + Math.floor(rand() * 9)}${"ABDEFGHJLN"[Math.floor(rand() * 10)]}${"ABDEFGHJLN"[Math.floor(rand() * 10)]}`;
 
       results.push({

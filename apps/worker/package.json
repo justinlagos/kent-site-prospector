@@ -1,0 +1,27 @@
+{
+  "name": "@ksp/worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "node dist/main.js",
+    "dev": "tsx src/main.ts"
+  },
+  "dependencies": {
+    "@ksp/shared": "workspace:*",
+    "@ksp/database": "workspace:*",
+    "@ksp/discovery": "workspace:*",
+    "@ksp/compliance": "workspace:*",
+    "@ksp/auditing": "workspace:*",
+    "@ksp/scoring": "workspace:*",
+    "@ksp/research": "workspace:*",
+    "@ksp/content-generation": "workspace:*",
+    "@ksp/asset-management": "workspace:*",
+    "@ksp/deployment": "workspace:*",
+    "@ksp/email": "workspace:*",
+    "@ksp/analytics": "workspace:*"
+  },
+  "devDependencies": { "tsx": "^4.19.0" }
+}

@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
-import { chromium, type Browser, type Page } from "playwright";
+import { type Browser, type Page } from "playwright";
+import { launchBrowser } from "./browser.js";
 import { type Logger } from "@ksp/shared";
 import { AuditFindings, AuditReport, emptyFindings } from "./types.js";
 import { computeScores, fleschKincaidGrade } from "./scores.js";
@@ -71,7 +72,7 @@ export async function auditWebsite(
   let browser: Browser | null = null;
   const screenshotPaths: Record<string, string> = {};
   try {
-    browser = await chromium.launch({ headless: true });
+    browser = await launchBrowser();
     const context = await browser.newContext({ userAgent: USER_AGENT, viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
 

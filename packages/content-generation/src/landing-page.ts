@@ -146,7 +146,7 @@ export function renderLandingPage(input: RenderInput): Record<string, string> {
   <section class="reviews" aria-label="Reputation">
     <h2>What customers say</h2>
     <p class="review-stat">${esc(reviewFact.fact)}</p>
-    <p class="asset-note">Individual review quotes appear here once selected and approved by you.</p>
+    <p class="asset-note">Individual review quotes appear here once you choose and sign them off.</p>
   </section>`);
   }
 

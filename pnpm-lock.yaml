@@ -30,6 +30,49 @@ importers:
         specifier: ^3.1.0
         version: 3.2.7(@types/node@22.20.1)(jiti@2.7.0)(tsx@4.23.1)
 
+  apps/worker:
+    dependencies:
+      '@ksp/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
+      '@ksp/asset-management':
+        specifier: workspace:*
+        version: link:../../packages/asset-management
+      '@ksp/auditing':
+        specifier: workspace:*
+        version: link:../../packages/auditing
+      '@ksp/compliance':
+        specifier: workspace:*
+        version: link:../../packages/compliance
+      '@ksp/content-generation':
+        specifier: workspace:*
+        version: link:../../packages/content-generation
+      '@ksp/database':
+        specifier: workspace:*
+        version: link:../../packages/database
+      '@ksp/deployment':
+        specifier: workspace:*
+        version: link:../../packages/deployment
+      '@ksp/discovery':
+        specifier: workspace:*
+        version: link:../../packages/discovery
+      '@ksp/email':
+        specifier: workspace:*
+        version: link:../../packages/email
+      '@ksp/research':
+        specifier: workspace:*
+        version: link:../../packages/research
+      '@ksp/scoring':
+        specifier: workspace:*
+        version: link:../../packages/scoring
+      '@ksp/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.1
+
   packages/analytics:
     dependencies:
       '@ksp/database':
@@ -105,6 +148,9 @@ importers:
       '@ksp/asset-management':
         specifier: workspace:*
         version: link:../asset-management
+      '@ksp/auditing':
+        specifier: workspace:*
+        version: link:../auditing
       '@ksp/content-generation':
         specifier: workspace:*
         version: link:../content-generation
