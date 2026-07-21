@@ -74,9 +74,15 @@ importers:
       '@ksp/database':
         specifier: workspace:*
         version: link:../database
+      '@ksp/research':
+        specifier: workspace:*
+        version: link:../research
       '@ksp/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
 
   packages/database:
     dependencies:
@@ -129,6 +135,9 @@ importers:
       '@ksp/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
 
   packages/scoring:
     dependencies:
