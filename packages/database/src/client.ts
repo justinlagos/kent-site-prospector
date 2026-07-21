@@ -35,13 +35,15 @@ export async function withAdvisoryLock<T>(
   prisma: PrismaClient,
   name: string,
   fn: (tx: Prisma.TransactionClient) => Promise<T>,
+  opts?: { timeoutMs?: number },
 ): Promise<T> {
   return prisma.$transaction(
     async (tx) => {
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${lockKey(name)})`);
       return fn(tx);
     },
-    { timeout: 120_000, maxWait: 30_000 },
+    // Long-running holders (the daily pipeline wraps browser work) pass a large timeout.
+    { timeout: opts?.timeoutMs ?? 120_000, maxWait: 60_000 },
   );
 }
 

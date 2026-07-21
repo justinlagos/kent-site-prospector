@@ -63,7 +63,10 @@ export async function runDailyPipeline(
   }
   const runDate = londonDateString(now);
 
-  return withAdvisoryLock(prisma, `daily-run:${runDate}`, async () => {
+  return withAdvisoryLock(
+    prisma,
+    `daily-run:${runDate}`,
+    async () => {
     const run = await prisma.automationRun.upsert({
       where: { runDate_runType: { runDate, runType: "daily-pipeline" } },
       update: {},
@@ -491,5 +494,7 @@ export async function runDailyPipeline(
     });
 
     return { status: anyFailed ? "PARTIAL" : "COMPLETED", selected: ctx.selectedIds ?? [] };
-  });
+    },
+    { timeoutMs: 4 * 3600_000 }, // real runs include ~20 Playwright audits
+  );
 }
