@@ -5,13 +5,22 @@
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "exports": { ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" } },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@ksp/shared": "workspace:*",
-    "@ksp/database": "workspace:*"
+    "@ksp/database": "workspace:*",
+    "@ksp/research": "workspace:*",
+    "@ksp/content-generation": "workspace:*",
+    "@ksp/compliance": "workspace:*",
+    "zod": "^3.24.0"
   }
 }

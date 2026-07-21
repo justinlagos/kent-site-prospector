@@ -102,12 +102,24 @@ importers:
 
   packages/deployment:
     dependencies:
+      '@ksp/asset-management':
+        specifier: workspace:*
+        version: link:../asset-management
+      '@ksp/content-generation':
+        specifier: workspace:*
+        version: link:../content-generation
       '@ksp/database':
         specifier: workspace:*
         version: link:../database
+      '@ksp/research':
+        specifier: workspace:*
+        version: link:../research
       '@ksp/shared':
         specifier: workspace:*
         version: link:../shared
+      playwright:
+        specifier: ^1.52.0
+        version: 1.61.1
 
   packages/discovery:
     dependencies:
@@ -120,12 +132,24 @@ importers:
 
   packages/email:
     dependencies:
+      '@ksp/compliance':
+        specifier: workspace:*
+        version: link:../compliance
+      '@ksp/content-generation':
+        specifier: workspace:*
+        version: link:../content-generation
       '@ksp/database':
         specifier: workspace:*
         version: link:../database
+      '@ksp/research':
+        specifier: workspace:*
+        version: link:../research
       '@ksp/shared':
         specifier: workspace:*
         version: link:../shared
+      zod:
+        specifier: ^3.24.0
+        version: 3.25.76
 
   packages/research:
     dependencies:
