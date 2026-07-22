@@ -47,6 +47,17 @@ export const envSchema = z.object({
   EMAIL_VALIDATION_API_URL: z.string().url().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-4-5"),
+  /**
+   * LLM provider when LLM_ADAPTER=real:
+   *  - "anthropic": Claude API (ANTHROPIC_API_KEY)
+   *  - "openai-compatible": any OpenAI-compatible endpoint — Google Gemini
+   *    (https://generativelanguage.googleapis.com/v1beta/openai), Groq, OpenRouter,
+   *    or a local Ollama (http://localhost:11434/v1, no key needed).
+   */
+  LLM_PROVIDER: z.enum(["anthropic", "openai-compatible"]).default("anthropic"),
+  OPENAI_COMPAT_BASE_URL: z.string().url().optional(),
+  OPENAI_COMPAT_API_KEY: z.string().optional(),
+  OPENAI_COMPAT_MODEL: z.string().optional(),
   NETLIFY_API_TOKEN: z.string().optional(),
   NETLIFY_ACCOUNT_SLUG: z.string().optional(),
   POSTMARK_SERVER_TOKEN: z.string().optional(),
@@ -113,7 +124,6 @@ const CREDENTIAL_REQUIREMENTS: Array<{
   { adapter: "DIRECTORY_ADAPTER", keys: ["GOOGLE_PLACES_API_KEY"] },
   { adapter: "REGISTRY_ADAPTER", keys: ["COMPANIES_HOUSE_API_KEY"] },
   { adapter: "EMAIL_VALIDATION_ADAPTER", keys: ["EMAIL_VALIDATION_API_KEY"] },
-  { adapter: "LLM_ADAPTER", keys: ["ANTHROPIC_API_KEY"] },
   { adapter: "DEPLOY_ADAPTER", keys: ["NETLIFY_API_TOKEN"] },
   { adapter: "EMAIL_PROVIDER_ADAPTER", keys: ["POSTMARK_SERVER_TOKEN"] },
 ];
@@ -139,6 +149,20 @@ export function loadEnv(raw: NodeJS.ProcessEnv = process.env): Env {
         if (!env[key]) {
           throw new ConfigError(`${String(req.adapter)}=real requires ${String(key)} to be set`);
         }
+      }
+    }
+  }
+
+  // LLM credentials depend on the selected provider.
+  if (env.LLM_ADAPTER === "real") {
+    if (env.LLM_PROVIDER === "anthropic" && !env.ANTHROPIC_API_KEY) {
+      throw new ConfigError("LLM_ADAPTER=real with LLM_PROVIDER=anthropic requires ANTHROPIC_API_KEY");
+    }
+    if (env.LLM_PROVIDER === "openai-compatible") {
+      if (!env.OPENAI_COMPAT_BASE_URL || !env.OPENAI_COMPAT_MODEL) {
+        throw new ConfigError(
+          "LLM_ADAPTER=real with LLM_PROVIDER=openai-compatible requires OPENAI_COMPAT_BASE_URL and OPENAI_COMPAT_MODEL (OPENAI_COMPAT_API_KEY optional for local endpoints)",
+        );
       }
     }
   }

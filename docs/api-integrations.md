@@ -9,7 +9,7 @@ fatal on other 4xx, honest identification, no scraping fallbacks.
 | Google Places (New) `places:searchText` | `DIRECTORY_ADAPTER` | `GOOGLE_PLACES_API_KEY` | Google Cloud console → enable "Places API (New)" → API key restricted to it |
 | Companies House REST | `REGISTRY_ADAPTER` | `COMPANIES_HOUSE_API_KEY` | developer.company-information.service.gov.uk → create application (free) |
 | Email validation (ZeroBounce-compatible) | `EMAIL_VALIDATION_ADAPTER` | `EMAIL_VALIDATION_API_KEY` (+ optional `EMAIL_VALIDATION_API_URL`) | zerobounce.net or compatible |
-| Claude API | `LLM_ADAPTER` | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | console.anthropic.com |
+| LLM (Claude API, or any OpenAI-compatible endpoint) | `LLM_ADAPTER` + `LLM_PROVIDER` | anthropic: `ANTHROPIC_API_KEY`; openai-compatible: `OPENAI_COMPAT_BASE_URL`, `OPENAI_COMPAT_MODEL`, optional `OPENAI_COMPAT_API_KEY` | console.anthropic.com — or free tiers: Gemini (aistudio.google.com), Groq, OpenRouter, or local Ollama |
 | Netlify | `DEPLOY_ADAPTER` | `NETLIFY_API_TOKEN` | app.netlify.com → User settings → Applications → personal access token |
 | Postmark | `EMAIL_PROVIDER_ADAPTER` | `POSTMARK_SERVER_TOKEN`, `POSTMARK_MESSAGE_STREAM`, `POSTMARK_WEBHOOK_TOKEN` | postmarkapp.com → server → API tokens; configure webhooks per deployment.md |
 

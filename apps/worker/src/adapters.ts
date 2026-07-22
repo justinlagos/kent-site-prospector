@@ -17,7 +17,7 @@ import {
   HttpEmailValidationAdapter,
   MockEmailValidationAdapter,
 } from "@ksp/discovery";
-import { AnthropicAdapter, MockLlmAdapter } from "@ksp/research";
+import { AnthropicAdapter, MockLlmAdapter, OpenAiCompatAdapter } from "@ksp/research";
 import { NetlifyAdapter, MockDeployAdapter } from "@ksp/deployment";
 import { PostmarkAdapter, MockEmailProviderAdapter } from "@ksp/email";
 
@@ -52,9 +52,16 @@ export function buildAdapters(env: Env, logger: Logger): Adapters {
           )
         : new MockEmailValidationAdapter(),
     llm:
-      env.LLM_ADAPTER === "real"
-        ? new AnthropicAdapter(env.ANTHROPIC_API_KEY!, env.ANTHROPIC_MODEL, logger.child({ adapter: "llm" }))
-        : new MockLlmAdapter(),
+      env.LLM_ADAPTER !== "real"
+        ? new MockLlmAdapter()
+        : env.LLM_PROVIDER === "openai-compatible"
+          ? new OpenAiCompatAdapter(
+              env.OPENAI_COMPAT_BASE_URL!,
+              env.OPENAI_COMPAT_API_KEY,
+              env.OPENAI_COMPAT_MODEL!,
+              logger.child({ adapter: "llm-compat" }),
+            )
+          : new AnthropicAdapter(env.ANTHROPIC_API_KEY!, env.ANTHROPIC_MODEL, logger.child({ adapter: "llm" })),
     deployer:
       env.DEPLOY_ADAPTER === "real"
         ? new NetlifyAdapter(env.NETLIFY_API_TOKEN!, logger.child({ adapter: "netlify" }), undefined)
