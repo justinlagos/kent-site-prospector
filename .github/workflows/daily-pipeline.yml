@@ -1,0 +1,60 @@
+name: KSP daily pipeline
+on:
+  schedule:
+    - cron: "30 5 * * 1-5"
+  workflow_dispatch: {}
+concurrency:
+  group: ksp-daily
+  cancel-in-progress: false
+jobs:
+  daily:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      APP_ENV: ${{ vars.APP_ENV || 'development' }}
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      DIRECTORY_ADAPTER: ${{ vars.DIRECTORY_ADAPTER || 'real' }}
+      REGISTRY_ADAPTER: ${{ vars.REGISTRY_ADAPTER || 'real' }}
+      LLM_ADAPTER: ${{ vars.LLM_ADAPTER || 'real' }}
+      DEPLOY_ADAPTER: ${{ vars.DEPLOY_ADAPTER || 'real' }}
+      IMAGE_ADAPTER: ${{ vars.IMAGE_ADAPTER || 'real' }}
+      EMAIL_VALIDATION_ADAPTER: ${{ vars.EMAIL_VALIDATION_ADAPTER || 'mock' }}
+      EMAIL_PROVIDER_ADAPTER: ${{ vars.EMAIL_PROVIDER_ADAPTER || 'mock' }}
+      EMAIL_DRY_RUN: ${{ vars.EMAIL_DRY_RUN || 'true' }}
+      EMAIL_DOMAIN_AUTH_CONFIRMED: ${{ vars.EMAIL_DOMAIN_AUTH_CONFIRMED || 'false' }}
+      GOOGLE_PLACES_API_KEY: ${{ secrets.GOOGLE_PLACES_API_KEY }}
+      COMPANIES_HOUSE_API_KEY: ${{ secrets.COMPANIES_HOUSE_API_KEY }}
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      NETLIFY_API_TOKEN: ${{ secrets.NETLIFY_API_TOKEN }}
+      EMAIL_VALIDATION_API_KEY: ${{ secrets.EMAIL_VALIDATION_API_KEY }}
+      POSTMARK_SERVER_TOKEN: ${{ secrets.POSTMARK_SERVER_TOKEN }}
+      POSTMARK_WEBHOOK_TOKEN: ${{ secrets.POSTMARK_WEBHOOK_TOKEN }}
+      SESSION_SECRET: ${{ secrets.SESSION_SECRET }}
+      UNSUBSCRIBE_HMAC_SECRET: ${{ secrets.UNSUBSCRIBE_HMAC_SECRET }}
+      DASHBOARD_BASE_URL: ${{ vars.DASHBOARD_BASE_URL || 'http://localhost:3000' }}
+      AGENCY_NAME: ${{ secrets.AGENCY_NAME }}
+      AGENCY_WEBSITE: ${{ secrets.AGENCY_WEBSITE }}
+      AGENCY_PHONE: ${{ secrets.AGENCY_PHONE }}
+      AGENCY_POSTAL_ADDRESS: ${{ secrets.AGENCY_POSTAL_ADDRESS }}
+      AGENCY_SENDER_NAME: ${{ secrets.AGENCY_SENDER_NAME }}
+      AGENCY_SENDER_EMAIL: ${{ secrets.AGENCY_SENDER_EMAIL }}
+      AGENCY_REPLY_TO_EMAIL: ${{ secrets.AGENCY_REPLY_TO_EMAIL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+        working-directory: packages/auditing
+      - run: pnpm build
+      - run: pnpm --filter @ksp/database run migrate:deploy
+      - run: node apps/worker/dist/main.js --job daily
+      - name: Upload run artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ksp-daily-${{ github.run_id }}
+          path: var/
+          retention-days: 14
+          if-no-files-found: ignore

@@ -1,0 +1,4 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "cd ../.. && pnpm -r --filter './packages/*' run build && cd apps/admin-dashboard && pnpm exec next build"
+}

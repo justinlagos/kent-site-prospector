@@ -8,3 +8,5 @@ coverage/
 var/
 !var/.gitkeep
 .DS_Store
+.vercel
+.env*
