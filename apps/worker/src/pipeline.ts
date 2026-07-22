@@ -5,6 +5,7 @@ import { withAdvisoryLock } from "@ksp/database";
 import {
   Env,
   agencyIdentity,
+  agencyIdentityComplete,
   type GeneratedImage,
   isLondonWeekday,
   londonDateString,
@@ -66,20 +67,35 @@ export async function runDailyPipeline(
   }
   const runDate = londonDateString(now);
 
-  return withAdvisoryLock(
-    prisma,
-    `daily-run:${runDate}`,
-    async () => {
-    const run = await prisma.automationRun.upsert({
+  // Claim the run under a SHORT advisory-lock transaction, then release it before the
+  // long-running work begins. We deliberately do NOT keep a transaction open for the whole
+  // pipeline: the ~20 Playwright audits take several minutes, and Neon (serverless Postgres)
+  // closes any connection left "idle in transaction", which previously crashed the run at
+  // commit time ("Server has closed the connection"). The one thing that must never exceed
+  // its cap — outbound email — is serialised separately by a short advisory lock in the email
+  // sender, and every stage below is idempotent, so releasing the run lock early is safe.
+  const run = await withAdvisoryLock(prisma, `daily-run-claim:${runDate}`, async (tx) => {
+    const existing = await tx.automationRun.findUnique({
       where: { runDate_runType: { runDate, runType: "daily-pipeline" } },
-      update: {},
-      create: { runDate, runType: "daily-pipeline" },
       include: { stages: true },
     });
-    if (run.status === "COMPLETED") {
-      logger.info("daily pipeline already completed for date", { runDate });
-      return { status: "ALREADY_COMPLETED", selected: (run.selectedBusinesses as string[]) ?? [] };
+    if (existing?.status === "COMPLETED") return existing;
+    if (existing) {
+      return tx.automationRun.update({
+        where: { id: existing.id },
+        data: { status: "RUNNING", startedAt: now },
+        include: { stages: true },
+      });
     }
+    return tx.automationRun.create({
+      data: { runDate, runType: "daily-pipeline" },
+      include: { stages: true },
+    });
+  });
+  if (run.status === "COMPLETED") {
+    logger.info("daily pipeline already completed for date", { runDate });
+    return { status: "ALREADY_COMPLETED", selected: (run.selectedBusinesses as string[]) ?? [] };
+  }
 
     const ctx: PipelineCtx = { runId: run.id, runDate, errors: [] };
 
@@ -301,6 +317,28 @@ export async function runDailyPipeline(
 
       await stage("concepts", async () => {
         const agency = agencyIdentity(env);
+        // Guard: without a complete agency identity, generated copy would contain
+        // "[AGENCY NAME NOT CONFIGURED]" placeholders that (correctly) fail the claims
+        // firewall at QA. Rather than emit a wall of confusing QA failures, skip concept
+        // generation with a single, actionable message. Set the AGENCY_* secrets to enable.
+        if (!agencyIdentityComplete(env)) {
+          logger.error(
+            "concepts skipped: agency identity incomplete — set AGENCY_NAME, AGENCY_WEBSITE, " +
+              "AGENCY_PHONE, AGENCY_POSTAL_ADDRESS, AGENCY_SENDER_NAME, AGENCY_SENDER_EMAIL, " +
+              "AGENCY_REPLY_TO_EMAIL (GitHub repo secrets / .env) and re-run.",
+          );
+          await prisma.deadLetter.create({
+            data: {
+              runId: run.id,
+              stage: "concepts",
+              payload: { runDate } as Prisma.InputJsonValue,
+              error:
+                "Agency identity incomplete. Concept generation, deployment and email were " +
+                "skipped. Configure the seven AGENCY_* values and re-run.",
+            },
+          });
+          return {};
+        }
         const varDir = path.resolve(env.VAR_DIR);
         const expirySetting = await prisma.setting.findUnique({ where: { key: "previewExpiryDays" } });
         const expiryDays = typeof expirySetting?.value === "number" ? expirySetting.value : env.PREVIEW_EXPIRY_DAYS;
@@ -568,7 +606,4 @@ export async function runDailyPipeline(
     });
 
     return { status: anyFailed ? "PARTIAL" : "COMPLETED", selected: ctx.selectedIds ?? [] };
-    },
-    { timeoutMs: 4 * 3600_000 }, // real runs include ~20 Playwright audits
-  );
 }

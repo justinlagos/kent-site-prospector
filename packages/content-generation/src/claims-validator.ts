@@ -48,8 +48,19 @@ export function validateClaims(text: string, brief: ResearchBrief): ClaimViolati
       if (rule.allowIfVerified) {
         const needle = match.toLowerCase().trim();
         if (verifiedBlob.includes(needle)) continue;
-        // review-score special case: "N reviews averaging X/5" fact covers "X/5" style mentions
-        if (rule.name === "review-score" && /averaging/.test(verifiedBlob) && verifiedBlob.includes(needle.replace(/\s/g, " "))) continue;
+        // review-score: verified facts store the rating as "…averaging 4.1/5", but approved
+        // copy may phrase the same value as "4.1 out of 5" or "4.1 stars". Allow when a
+        // verified fact cites the SAME numeric rating in a review/rating context.
+        if (rule.name === "review-score") {
+          const num = needle.match(/[0-5](\.\d)?/)?.[0];
+          if (
+            num &&
+            /(averaging|review|rating|out of|\/\s?5|stars?)/.test(verifiedBlob) &&
+            verifiedBlob.includes(num)
+          ) {
+            continue;
+          }
+        }
       }
       violations.push({
         rule: rule.name,

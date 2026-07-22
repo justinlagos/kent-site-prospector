@@ -54,6 +54,25 @@ describe("claims firewall", () => {
     expect(violations.filter((v) => v.rule === "review-score")).toHaveLength(0);
   });
 
+  it("allows a verified rating phrased differently (4.1/5 fact -> '4.1 out of 5' copy)", () => {
+    const brief = briefWithFacts([
+      { fact: "182 public reviews averaging 4.1/5", source: "google" },
+    ]);
+    const violations = validateClaims(
+      "Patients rate the practice 4.1 out of 5 across 182 reviews.",
+      brief,
+    );
+    expect(violations.filter((v) => v.rule === "review-score")).toHaveLength(0);
+  });
+
+  it("still blocks a rating value that is not in the verified facts", () => {
+    const brief = briefWithFacts([
+      { fact: "182 public reviews averaging 4.1/5", source: "google" },
+    ]);
+    const violations = validateClaims("Rated 4.9 out of 5 by our patients.", brief);
+    expect(violations.map((v) => v.rule)).toContain("review-score");
+  });
+
   it("blocks review scores NOT in verified facts", () => {
     const brief = briefWithFacts([]);
     const violations = validateClaims("Rated 5/5 by hundreds of happy patients.", brief);
