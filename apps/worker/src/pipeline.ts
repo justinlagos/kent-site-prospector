@@ -5,6 +5,7 @@ import { withAdvisoryLock } from "@ksp/database";
 import {
   Env,
   agencyIdentity,
+  type GeneratedImage,
   isLondonWeekday,
   londonDateString,
   systemClock,
@@ -18,6 +19,7 @@ import { scoreProspect, selectDailyPair } from "@ksp/scoring";
 import { generateResearchBrief, type BriefSourceData, type ResearchBrief } from "@ksp/research";
 import { getStrategy, generateLandingCopy, renderLandingPage } from "@ksp/content-generation";
 import { generateConceptSlug, assertSlugNonDeceptive, runQaPipeline } from "@ksp/deployment";
+import { buildConceptImagePlan, registerAsset } from "@ksp/asset-management";
 import {
   generateOutreachEmail,
   auditEvidenceForEmail,
@@ -321,12 +323,53 @@ export async function runDailyPipeline(
 
             const slug = generateConceptSlug();
             assertSlugNonDeceptive(slug, business.name);
-            const files = renderLandingPage({ brief, copy, strategy, agency, slug });
+
+            // Tailored illustrative imagery (never depicts the actual business).
+            // Failure here degrades gracefully to placeholders — it never blocks the day.
+            const imageFiles: Record<string, Buffer> = {};
+            const images: Record<string, string> = {};
+            if (adapters.imageGen) {
+              const plan = buildConceptImagePlan(
+                business.category.strategyKey,
+                business.id,
+                Math.min(brief.primaryServices.length || 1, 3),
+              );
+              for (const item of plan) {
+                try {
+                  const img: GeneratedImage = await adapters.imageGen.generate({
+                    prompt: item.prompt,
+                    width: item.width,
+                    height: item.height,
+                    seed: item.seed,
+                  });
+                  const rel = `assets/${item.key}.${img.ext}`;
+                  imageFiles[rel] = img.data;
+                  images[item.key] = rel;
+                  await registerAsset(prisma, {
+                    businessId: business.id,
+                    source: `image-gen:${img.provider}`,
+                    requestedStatus: "GENERATED",
+                    intendedUse: `concept ${item.key} image`,
+                    localPath: rel,
+                  });
+                } catch (imgErr) {
+                  logger.warn("image generation failed; using placeholder", {
+                    key: item.key,
+                    error: imgErr instanceof Error ? imgErr.message.slice(0, 150) : "unknown",
+                  });
+                }
+              }
+            }
+
+            const files: Record<string, string | Buffer> = {
+              ...renderLandingPage({ brief, copy, strategy, agency, slug, images }),
+              ...imageFiles,
+            };
 
             const htmlDir = path.join(varDir, "concepts", businessId);
             await mkdir(htmlDir, { recursive: true });
             const htmlPath = path.join(htmlDir, "index.html");
-            await writeFile(htmlPath, files["index.html"]!);
+            await writeFile(htmlPath, files["index.html"]! as string);
 
             const qa = await runQaPipeline(prisma, logger, {
               businessId,

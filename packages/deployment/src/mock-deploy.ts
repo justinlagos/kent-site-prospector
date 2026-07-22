@@ -15,9 +15,10 @@ export class MockDeployAdapter implements DeployAdapter {
   async deploy(req: DeployRequest): Promise<DeployResult> {
     const siteId = `mock-site-${req.slug}`;
     const dir = path.join(this.deployRoot, req.slug);
-    await mkdir(dir, { recursive: true });
     for (const [name, content] of Object.entries(req.files)) {
-      await writeFile(path.join(dir, name.replace(/^\//, "")), content);
+      const target = path.join(dir, name.replace(/^\//, ""));
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content);
     }
     return {
       deploymentId: `mock-deploy-${randomToken()}`,
@@ -30,9 +31,10 @@ export class MockDeployAdapter implements DeployAdapter {
   async replace(siteId: string, files: Record<string, string | Buffer>): Promise<DeployResult> {
     const slug = siteId.replace(/^mock-site-/, "");
     const dir = path.join(this.deployRoot, slug);
-    await mkdir(dir, { recursive: true });
     for (const [name, content] of Object.entries(files)) {
-      await writeFile(path.join(dir, name.replace(/^\//, "")), content);
+      const target = path.join(dir, name.replace(/^\//, ""));
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content);
     }
     return {
       deploymentId: `mock-deploy-${randomToken()}`,

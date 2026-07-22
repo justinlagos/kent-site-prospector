@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   BusinessDirectoryAdapter,
+  ImageGenAdapter,
   CompanyRegistryAdapter,
   DeployAdapter,
   EmailProviderAdapter,
@@ -19,6 +20,7 @@ import {
 } from "@ksp/discovery";
 import { AnthropicAdapter, MockLlmAdapter, OpenAiCompatAdapter } from "@ksp/research";
 import { NetlifyAdapter, MockDeployAdapter } from "@ksp/deployment";
+import { PollinationsImageAdapter, MockImageGenAdapter } from "@ksp/asset-management";
 import { PostmarkAdapter, MockEmailProviderAdapter } from "@ksp/email";
 
 export interface Adapters {
@@ -26,6 +28,7 @@ export interface Adapters {
   registry: CompanyRegistryAdapter;
   emailValidation: EmailValidationAdapter;
   llm: LlmAdapter;
+  imageGen: ImageGenAdapter | null;
   deployer: DeployAdapter;
   emailProvider: EmailProviderAdapter;
 }
@@ -62,6 +65,12 @@ export function buildAdapters(env: Env, logger: Logger): Adapters {
               logger.child({ adapter: "llm-compat" }),
             )
           : new AnthropicAdapter(env.ANTHROPIC_API_KEY!, env.ANTHROPIC_MODEL, logger.child({ adapter: "llm" })),
+    imageGen:
+      env.IMAGE_ADAPTER === "off"
+        ? null
+        : env.IMAGE_ADAPTER === "real"
+          ? new PollinationsImageAdapter(logger.child({ adapter: "imagegen" }))
+          : new MockImageGenAdapter(),
     deployer:
       env.DEPLOY_ADAPTER === "real"
         ? new NetlifyAdapter(env.NETLIFY_API_TOKEN!, logger.child({ adapter: "netlify" }), undefined)

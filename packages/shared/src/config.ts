@@ -58,6 +58,14 @@ export const envSchema = z.object({
   OPENAI_COMPAT_BASE_URL: z.string().url().optional(),
   OPENAI_COMPAT_API_KEY: z.string().optional(),
   OPENAI_COMPAT_MODEL: z.string().optional(),
+  /**
+   * Tailored concept imagery:
+   *  - "real": generate illustrative images via IMAGE_PROVIDER (pollinations = free, no key)
+   *  - "mock": deterministic styled SVG art (offline)
+   *  - "off": neutral dashed placeholders only
+   */
+  IMAGE_ADAPTER: z.enum(["real", "mock", "off"]).default("mock"),
+  IMAGE_PROVIDER: z.enum(["pollinations"]).default("pollinations"),
   NETLIFY_API_TOKEN: z.string().optional(),
   NETLIFY_ACCOUNT_SLUG: z.string().optional(),
   POSTMARK_SERVER_TOKEN: z.string().optional(),

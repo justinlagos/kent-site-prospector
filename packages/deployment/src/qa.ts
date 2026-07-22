@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { launchBrowser } from "@ksp/auditing";
 import type { PrismaClient } from "@ksp/database";
@@ -37,7 +38,7 @@ export async function runQaPipeline(
   logger: Logger,
   input: {
     businessId: string;
-    files: Record<string, string>;
+    files: Record<string, string | Buffer>;
     brief: ResearchBrief;
     agency: AgencyIdentity;
     screenshotDir: string;
@@ -46,14 +47,15 @@ export async function runQaPipeline(
   },
 ): Promise<QaReport> {
   const checks: QaCheckResult[] = [];
-  const html = input.files["index.html"] ?? "";
+  const htmlRaw = input.files["index.html"] ?? "";
+  const html = typeof htmlRaw === "string" ? htmlRaw : htmlRaw.toString("utf8");
   const add = (name: string, passed: boolean, critical: boolean, detail?: string) =>
     checks.push({ name, passed, critical, detail });
 
   // --- Structural ---
   add("build-output-present", html.length > 2000, true, `index.html ${html.length} bytes`);
-  add("robots-txt-disallow", /User-agent: \*\s*\nDisallow: \/\s*/.test(input.files["robots.txt"] ?? ""), true);
-  add("headers-noindex", (input.files["_headers"] ?? "").includes("X-Robots-Tag: noindex"), true);
+  add("robots-txt-disallow", /User-agent: \*\s*\nDisallow: \/\s*/.test(String(input.files["robots.txt"] ?? "")), true);
+  add("headers-noindex", String(input.files["_headers"] ?? "").includes("X-Robots-Tag: noindex"), true);
   add("meta-noindex", /<meta name="robots" content="noindex, nofollow/.test(html), true);
   add("html-lang", /<html lang="en-GB">/.test(html), false);
   add("viewport-meta", /<meta name="viewport"/.test(html), true);
@@ -139,6 +141,19 @@ export async function runQaPipeline(
   }
   add("no-cross-prospect-leak", !leak, true, leak);
 
+  // --- Relative (bundled) assets: must exist in the bundle AND be registered publishable ---
+  const relativeRefs = [...html.matchAll(/src="((?!https?:|data:|#)[^"]+)"/g)].map((m) => m[1]!);
+  const missingFromBundle = relativeRefs.filter((r) => !(r in input.files));
+  add("bundled-assets-present", missingFromBundle.length === 0, true, missingFromBundle.join(","));
+  if (relativeRefs.length > 0) {
+    const registered = await prisma.asset.findMany({ where: { businessId: input.businessId } });
+    const unregistered = relativeRefs.filter(
+      (r) => !registered.some((a) => a.localPath === r &&
+        ["BUSINESS_OWNED_AND_PERMISSION_CONFIRMED", "LICENSED_STOCK", "PROVIDED_BY_OPERATOR", "GENERATED", "PLACEHOLDER"].includes(a.rightsStatus)),
+    );
+    add("bundled-assets-registered", unregistered.length === 0, true, unregistered.join(","));
+  }
+
   // --- Broken internal references ---
   const hrefs = [...html.matchAll(/href="#([^"]+)"/g)].map((m) => m[1]!);
   const missingAnchors = hrefs.filter((h) => !html.includes(`id="${h}"`));
@@ -148,9 +163,17 @@ export async function runQaPipeline(
   const screenshotPaths: Record<string, string> = {};
   try {
     await mkdir(input.screenshotDir, { recursive: true });
+    // Write the full bundle to a temp dir and load over file:// so relative assets resolve.
+    const bundleDir = await mkdtemp(path.join(tmpdir(), "ksp-qa-"));
+    for (const [name, content] of Object.entries(input.files)) {
+      const target = path.join(bundleDir, name.replace(/^\/+/, ""));
+      await mkdir(path.dirname(target), { recursive: true });
+      await writeFile(target, content);
+    }
     const browser = await launchBrowser();
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: "load" });
+    await page.goto(`file://${path.join(bundleDir, "index.html")}`, { waitUntil: "load" });
+    await page.waitForTimeout(300);
 
     const a11y = await page.evaluate(() => {
       const issues: string[] = [];
@@ -181,8 +204,13 @@ export async function runQaPipeline(
       await page.screenshot({ path: file, fullPage: vp.name === "desktop-1440" });
       screenshotPaths[vp.name] = file;
     }
+    const brokenImages = await page.evaluate(() =>
+      Array.from(document.querySelectorAll("img")).filter((i) => i.complete && i.naturalWidth === 0).length,
+    );
+    add("images-render", brokenImages === 0, true, brokenImages > 0 ? `${brokenImages} broken image(s)` : undefined);
     add("viewports-render", true, true);
     await browser.close();
+    await rm(bundleDir, { recursive: true, force: true });
   } catch (err) {
     add("viewports-render", false, true, err instanceof Error ? err.message.slice(0, 200) : "render failed");
   }

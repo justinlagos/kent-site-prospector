@@ -66,6 +66,9 @@ export interface RenderInput {
   strategy: IndustryStrategy;
   agency: AgencyIdentity;
   slug: string;
+  /** Optional generated illustrative images: keys "hero", "service-0".."service-2" ->
+   * bundle-relative paths (e.g. "assets/hero.jpg"). Absent keys fall back to placeholders. */
+  images?: Record<string, string>;
 }
 
 /**
@@ -76,6 +79,7 @@ export interface RenderInput {
  */
 export function renderLandingPage(input: RenderInput): Record<string, string> {
   const { brief, copy, strategy, agency } = input;
+  const images = input.images ?? {};
   const p = strategy.palette;
   const name = esc(brief.businessName);
   const phone = brief.contact.phone ? esc(brief.contact.phone) : null;
@@ -102,6 +106,7 @@ export function renderLandingPage(input: RenderInput): Record<string, string> {
         ${phone ? `<a class="btn ghost" href="tel:${phone.replace(/\s+/g, "")}">${esc(strategy.secondaryCta)}</a>` : ""}
       </div>
       ${reviewFact ? `<p class="hero-proof">${esc(reviewFact.fact)}</p>` : ""}
+      ${images["hero"] ? `<img class="hero-img" src="${esc(images["hero"]!)}" alt="Illustrative scene for this design concept — not a photo of the business" loading="eager"/>` : ""}
     </div>
   </header>`);
 
@@ -123,13 +128,15 @@ export function renderLandingPage(input: RenderInput): Record<string, string> {
     <div class="grid3">
       ${services
         .slice(0, 6)
-        .map(
-          (s) =>
-            `<article class="card service"><img src="${placeholderSvg(`Licensed image placeholder — ${esc(s)}`, p.primary)}" alt="Placeholder illustration for ${esc(s)} — to be replaced with owned or licensed photography" loading="lazy"/><h3>${esc(s)}</h3></article>`,
-        )
+        .map((s, i) => {
+          const src = images[`service-${i}`];
+          return src
+            ? `<article class="card service"><img src="${esc(src)}" alt="Illustrative image for ${esc(s)} — not a photo of the business" loading="lazy"/><h3>${esc(s)}</h3></article>`
+            : `<article class="card service"><img src="${placeholderSvg(`Licensed image placeholder — ${esc(s)}`, p.primary)}" alt="Placeholder illustration for ${esc(s)} — to be replaced with owned or licensed photography" loading="lazy"/><h3>${esc(s)}</h3></article>`;
+        })
         .join("\n      ")}
     </div>
-    <p class="asset-note">Photography shown as placeholders — replaced with your own approved images in a full build.</p>
+    <p class="asset-note">Imagery is illustrative${Object.keys(images).length > 0 ? " (generated for this concept)" : ""} — replaced with your own approved photography in a full build.</p>
   </section>`);
   }
 
@@ -251,6 +258,7 @@ section{max-width:1080px;margin:0 auto;padding:3rem 1.25rem}
 .sub{font-size:1.15rem;color:#4a5568;max-width:34rem;margin:.9rem 0 1.6rem}
 .hero-actions{display:flex;gap:.8rem;flex-wrap:wrap}
 .hero-proof{margin-top:1.2rem;font-weight:600;color:var(--primary)}
+.hero-img{margin-top:1.6rem;width:100%;max-width:680px;aspect-ratio:12/7;object-fit:cover;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.12)}
 .btn{display:inline-block;padding:.8rem 1.5rem;border-radius:9px;font-weight:600;text-decoration:none;border:2px solid transparent;font-size:1rem;cursor:pointer}
 .btn.primary{background:var(--primary);color:#fff}
 .btn.primary:hover{background:var(--dark)}

@@ -103,6 +103,33 @@ export interface LlmAdapter {
 }
 
 // ---------------------------------------------------------------------------
+// Image generation (tailored illustrative imagery for concepts)
+// ---------------------------------------------------------------------------
+
+export interface ImageGenRequest {
+  /** Full prompt. Callers must keep prompts illustrative/generic — the pipeline's
+   * prompt builder enforces: no identifiable people, no text/logos, and never a
+   * depiction of the actual business premises, staff or results. */
+  prompt: string;
+  width: number;
+  height: number;
+  /** Deterministic variation per business so every concept looks distinct. */
+  seed: number;
+}
+
+export interface GeneratedImage {
+  data: Buffer;
+  /** file extension without dot, e.g. "jpg" | "svg" */
+  ext: string;
+  provider: string;
+}
+
+export interface ImageGenAdapter {
+  readonly source: string;
+  generate(req: ImageGenRequest): Promise<GeneratedImage>;
+}
+
+// ---------------------------------------------------------------------------
 // Deployment (Netlify)
 // ---------------------------------------------------------------------------
 
