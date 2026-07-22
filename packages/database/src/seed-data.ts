@@ -121,7 +121,7 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   sendWindowStartHour: 10,
   sendWindowEndHour: 15,
   minProspectScore: 60,
-  minOpportunityScore: 50,
+  minOpportunityScore: 15,
   previewExpiryDays: 30,
   followUpsEnabled: false,
   followUpMaxCount: 1,

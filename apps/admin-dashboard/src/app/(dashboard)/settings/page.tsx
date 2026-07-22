@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 const FIELDS: Array<{ key: string; label: string; type: "number" | "boolean" | "text"; help: string }> = [
   { key: "dailyFirstContactLimit", label: "Daily first-contact limit", type: "number", help: "Hard cap on new-business emails per weekday (ADMIN)" },
   { key: "minProspectScore", label: "Minimum prospect score", type: "number", help: "0–100 threshold for selection" },
-  { key: "minOpportunityScore", label: "Minimum website-opportunity score", type: "number", help: "Below this the site is considered too good to pitch" },
+  { key: "minOpportunityScore", label: "Minimum website-opportunity score", type: "number", help: "Below this the site is considered too good to pitch. Real-world sites score tighter than you might expect: 15 is a sensible floor, 25+ is very selective" },
   { key: "previewExpiryDays", label: "Preview expiry (days)", type: "number", help: "Concepts auto-unpublish after this many days" },
   { key: "followUpsEnabled", label: "Follow-ups enabled", type: "boolean", help: "OFF by default. One polite follow-up max when enabled (ADMIN)" },
   { key: "emailKillSwitch", label: "EMAIL KILL SWITCH", type: "boolean", help: "true halts ALL sending immediately. Anyone can halt; only ADMIN can resume" },

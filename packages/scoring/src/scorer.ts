@@ -68,8 +68,15 @@ export async function disqualify(
 
   const audit = business.audits[0];
   if (!audit) return { disqualified: true, reason: "no website audit available" };
-  if (audit.hasWebsite && audit.opportunityScore < 25) {
-    return { disqualified: true, reason: "existing website is already strong (low opportunity)" };
+  // Threshold is operator-tunable (dashboard Settings -> minOpportunityScore).
+  // Real-world sites score tighter than synthetic ones, so the default is deliberately low.
+  const minOppSetting = await prisma.setting.findUnique({ where: { key: "minOpportunityScore" } });
+  const minOpportunity = typeof minOppSetting?.value === "number" ? minOppSetting.value : 15;
+  if (audit.hasWebsite && audit.opportunityScore < minOpportunity) {
+    return {
+      disqualified: true,
+      reason: `existing website is already strong (opportunity ${audit.opportunityScore} < ${minOpportunity})`,
+    };
   }
 
   const chainSetting = await prisma.setting.findUnique({ where: { key: "chainBusinessesEnabled" } });
