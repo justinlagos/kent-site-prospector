@@ -120,7 +120,14 @@ const CREDENTIAL_REQUIREMENTS: Array<{
 
 /** Parse and cross-validate the environment. Throws ConfigError on invalid combinations. */
 export function loadEnv(raw: NodeJS.ProcessEnv = process.env): Env {
-  const parsed = envSchema.safeParse(raw);
+  // Treat empty-string variables as unset. Sourcing a .env file with blank values
+  // (e.g. `EMAIL_VALIDATION_API_URL=`) exports "" — which must not fail url/format
+  // validation for optional fields, and must fall through to defaults elsewhere.
+  const cleaned: NodeJS.ProcessEnv = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (value !== "") cleaned[key] = value;
+  }
+  const parsed = envSchema.safeParse(cleaned);
   if (!parsed.success) {
     throw new ConfigError(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
   }
