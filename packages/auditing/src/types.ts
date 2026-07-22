@@ -22,6 +22,8 @@ export interface AuditFindings {
   hasCallToAction: boolean;
   hasPhoneLink: boolean;
   hasEmailLink: boolean;
+  /** Generic/role emails published by the business on its own site (homepage + contact page). */
+  foundEmails: string[];
   contactInfoVisible: boolean;
   hasBookingFunctionality: boolean;
   hasForm: boolean;
@@ -84,6 +86,7 @@ export function emptyFindings(): AuditFindings {
     hasCallToAction: false,
     hasPhoneLink: false,
     hasEmailLink: false,
+    foundEmails: [],
     contactInfoVisible: false,
     hasBookingFunctionality: false,
     hasForm: false,

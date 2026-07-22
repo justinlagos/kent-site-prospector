@@ -95,6 +95,12 @@ export async function auditWebsite(
     if (findings.reachable) {
       await collectPageFindings(page, findings, evidence, fetchImpl);
 
+      // One bounded extra page: the contact page, purely to find the business's own
+      // published contact email. Same robots.txt rules apply; failures are ignored.
+      if (findings.foundEmails.length === 0) {
+        await tryContactPage(page, findings, url, fetchImpl, opts.logger);
+      }
+
       // Mobile overflow check + screenshots at three viewports.
       await mkdir(opts.screenshotDir, { recursive: true });
       for (const vp of VIEWPORTS) {
@@ -159,6 +165,49 @@ export function robotsTxtAllowsPath(robotsTxt: string, pathName: string): boolea
     }
   }
   return best ? best.allow : true;
+}
+
+const EMAIL_RE_G = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+
+/** Domains that host widgets/providers — emails on these are never the business's own. */
+const THIRD_PARTY_EMAIL_DOMAINS =
+  /(example\.|sentry|wixpress|squarespace|godaddy|opentable|resdiary|sevenrooms|design-?my-?night|mailchimp|shopify|wordpress|cloudflare|google\.com$|schema\.org)/i;
+
+/**
+ * Record generic/role emails the business itself publishes on its site.
+ * Preference: addresses on the site's own domain; otherwise non-third-party addresses
+ * (many small businesses use gmail/outlook). Personal-name addresses are excluded later
+ * by the contact policy in the pipeline.
+ */
+function collectEmails(
+  findings: AuditFindings,
+  anchors: Array<{ href: string; text: string }>,
+  text: string,
+  pageUrl: string,
+): void {
+  const candidates = new Set<string>(findings.foundEmails);
+  for (const a of anchors) {
+    if (a.href.startsWith("mailto:")) {
+      const addr = a.href.slice(7).split("?")[0]?.trim().toLowerCase();
+      if (addr) candidates.add(addr);
+    }
+  }
+  for (const m of text.match(EMAIL_RE_G) ?? []) candidates.add(m.toLowerCase());
+
+  let siteDomain = "";
+  try {
+    siteDomain = new URL(pageUrl).hostname.replace(/^www\./, "");
+  } catch {
+    /* ignore */
+  }
+  const cleaned = [...candidates].filter((e) => {
+    const domain = e.split("@")[1] ?? "";
+    if (!domain || THIRD_PARTY_EMAIL_DOMAINS.test(domain)) return false;
+    if (/\.(png|jpg|jpeg|gif|webp|svg)$/.test(e)) return false; // regex artefacts like image@2x.png
+    return true;
+  });
+  const own = cleaned.filter((e) => siteDomain && (e.split("@")[1] ?? "").endsWith(siteDomain));
+  findings.foundEmails = (own.length > 0 ? own : cleaned).slice(0, 5);
 }
 
 async function collectPageFindings(
@@ -234,6 +283,7 @@ async function collectPageFindings(
   const anchors = raw.anchors;
   findings.hasPhoneLink = anchors.some((a) => a.href.startsWith("tel:"));
   findings.hasEmailLink = anchors.some((a) => a.href.startsWith("mailto:"));
+  collectEmails(findings, anchors, text, page.url());
   const phoneInText = /\b0\d{2,4}[\s-]?\d{5,8}\b/.test(text);
   const emailInText = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-z]{2,}/.test(text);
   findings.contactInfoVisible = findings.hasPhoneLink || findings.hasEmailLink || phoneInText || emailInText;
@@ -305,4 +355,53 @@ async function collectPageFindings(
   evidence.sampledLinks = sameOrigin;
   evidence.buttonsSample = raw.buttonsText.slice(0, 15);
   evidence.textSample = text.slice(0, 1500);
+}
+
+/** Visit the site's contact page (if any, robots permitting) to find a published email. */
+async function tryContactPage(
+  page: Page,
+  findings: AuditFindings,
+  siteUrl: URL,
+  fetchImpl: typeof fetch,
+  logger: Logger,
+): Promise<void> {
+  try {
+    const contactHref = await page.evaluate(() => {
+      const anchor = Array.from(document.querySelectorAll("a[href]")).find((a) => {
+        const href = ((a as HTMLAnchorElement).href || "").toLowerCase();
+        const label = (a.textContent || "").toLowerCase();
+        return /contact/.test(href) || /contact/.test(label);
+      }) as HTMLAnchorElement | undefined;
+      return anchor?.href ?? null;
+    });
+    if (!contactHref) return;
+    const contactUrl = new URL(contactHref, siteUrl.origin);
+    if (contactUrl.origin !== new URL(page.url()).origin) return; // same-origin only
+
+    const robotsRes = await fetchImpl(`${contactUrl.origin}/robots.txt`, {
+      signal: AbortSignal.timeout(8000),
+    }).catch(() => null);
+    if (robotsRes?.ok) {
+      const robots = await robotsRes.text();
+      if (!robotsTxtAllowsPath(robots, contactUrl.pathname)) return;
+    }
+
+    await page.goto(contactUrl.href, { waitUntil: "domcontentloaded", timeout: 15_000 });
+    await page.waitForTimeout(600);
+    const data = await page.evaluate(() => ({
+      text: document.body?.innerText ?? "",
+      anchors: Array.from(document.querySelectorAll("a[href]")).map((a) => ({
+        href: (a as HTMLAnchorElement).href,
+        text: (a.textContent ?? "").trim().slice(0, 80),
+      })),
+    }));
+    collectEmails(findings, data.anchors, data.text, contactUrl.href);
+    // Return to the homepage so viewport screenshots capture the right page.
+    await page.goto(siteUrl.href, { waitUntil: "domcontentloaded", timeout: 20_000 });
+    await page.waitForTimeout(400);
+  } catch (err) {
+    logger.debug("contact-page email pass skipped", {
+      error: err instanceof Error ? err.message.slice(0, 120) : "unknown",
+    });
+  }
 }

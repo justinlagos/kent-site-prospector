@@ -24,6 +24,7 @@ export async function mockAudit(websiteUrl: string, screenshotDir: string): Prom
   f.statusCode = 200;
   f.title = "Home";
   f.notes.push(`mock audit (${quality})`);
+  f.foundEmails = [];
 
   if (quality === "weak") {
     f.https = false;

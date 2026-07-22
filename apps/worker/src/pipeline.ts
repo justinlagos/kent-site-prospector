@@ -13,6 +13,7 @@ import {
   type Logger,
 } from "@ksp/shared";
 import { selectNextRotation, completeRotation, importDiscoveredBusinesses } from "@ksp/discovery";
+import { classifyEmailType } from "@ksp/shared";
 import { evaluateProspect } from "@ksp/compliance";
 import { auditWebsite } from "@ksp/auditing";
 import { scoreProspect, selectDailyPair } from "@ksp/scoring";
@@ -228,6 +229,36 @@ export async function runDailyPipeline(
             },
           });
           await prisma.business.update({ where: { id }, data: { status: "AUDITED" } });
+
+          // Google Places does not supply email addresses. If the business publishes a
+          // generic/role contact email on its OWN website, adopt it (source recorded as
+          // business-website — already listed in the data-source register). Personal-name
+          // addresses are never adopted for automated outreach, per policy.
+          for (const email of report.findings.foundEmails.slice(0, 3)) {
+            const type = classifyEmailType(email);
+            if (type === "PERSONAL") continue;
+            const existingContact = await prisma.contact.findUnique({
+              where: { businessId_email: { businessId: id, email } },
+            });
+            if (existingContact) continue;
+            const verdict = await adapters.emailValidation.validate(email);
+            await prisma.contact.create({
+              data: {
+                businessId: id,
+                email,
+                emailType: type,
+                validationStatus:
+                  verdict.verdict === "VALID" ? "VALID" : verdict.verdict === "INVALID" ? "INVALID" : "RISKY",
+                validationDetail: verdict.detail ?? null,
+                source: "business-website",
+                lastVerifiedAt: new Date(),
+              },
+            });
+            if (!business.primaryEmail) {
+              await prisma.business.update({ where: { id }, data: { primaryEmail: email } });
+            }
+            logger.info("adopted published business email", { businessId: id, type });
+          }
         }
         return {};
       });
