@@ -42,6 +42,15 @@ export interface AuditFindings {
   socialProofPresent: boolean;
   accessibilityIssues: string[];
   notes: string[];
+  /** Real brand signals lifted from the business's own site to make the concept on-brand. */
+  brandProfile: BrandProfile | null;
+}
+
+export interface BrandProfile {
+  colours?: { primary?: string; accent?: string; dark?: string; light?: string };
+  headingFont?: string;
+  bodyFont?: string;
+  logoUrl?: string;
 }
 
 export interface AuditScores {
@@ -105,5 +114,6 @@ export function emptyFindings(): AuditFindings {
     socialProofPresent: false,
     accessibilityIssues: [],
     notes: [],
+    brandProfile: null,
   };
 }

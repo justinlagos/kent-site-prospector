@@ -401,7 +401,7 @@ export async function runDailyPipeline(
               const plan = buildConceptImagePlan(
                 business.category.strategyKey,
                 business.id,
-                Math.min(brief.primaryServices.length || 1, 3),
+                Math.min(brief.primaryServices.length || 1, 6),
               );
               for (const item of plan) {
                 try {
@@ -430,8 +430,14 @@ export async function runDailyPipeline(
               }
             }
 
+            // Real brand signals extracted during the audit (colours/fonts from the
+            // business's own site) drive the concept's palette when present.
+            const brand = ((audit.findingsJson as Record<string, unknown>)?.brandProfile ?? undefined) as
+              | { colours?: { primary?: string; accent?: string; dark?: string; light?: string }; headingFont?: string; bodyFont?: string; logoUrl?: string }
+              | undefined;
+
             const files: Record<string, string | Buffer> = {
-              ...renderLandingPage({ brief, copy, strategy, agency, slug, images }),
+              ...renderLandingPage({ brief, copy, strategy, agency, slug, images, brand }),
               ...imageFiles,
             };
 

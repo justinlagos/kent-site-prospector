@@ -73,7 +73,11 @@ export interface ConceptImagePlan {
   seed: number;
 }
 
-/** Build the image plan for a concept: one hero + up to three service images. */
+/**
+ * Build the image plan for a concept: one hero + a four-image gallery + up to six service
+ * images, so every image slot on the page is filled with real generated photography (the
+ * renderer falls back to branded gradient art only if a generation fails).
+ */
 export function buildConceptImagePlan(strategyKey: string, businessId: string, serviceCount: number): ConceptImagePlan[] {
   const spec = SECTOR_SCENES[strategyKey] ?? SECTOR_SCENES["professional-services"]!;
   const baseSeed = hashSeed(businessId);
@@ -81,22 +85,17 @@ export function buildConceptImagePlan(strategyKey: string, businessId: string, s
   const plans: ConceptImagePlan[] = [];
 
   const scene = (i: number) => spec.scenes[i % spec.scenes.length]!;
-  plans.push({
-    key: "hero",
-    prompt: `${scene(baseSeed % spec.scenes.length)}, ${spec.style}, ${hue} palette, ${GLOBAL_CONSTRAINTS}`,
-    width: 1200,
-    height: 700,
-    seed: baseSeed,
+  const build = (key: string, sceneIdx: number, width: number, height: number, seedOffset: number): ConceptImagePlan => ({
+    key,
+    prompt: `${scene(sceneIdx)}, ${spec.style}, ${hue} palette, ${GLOBAL_CONSTRAINTS}`,
+    width,
+    height,
+    seed: baseSeed + seedOffset,
   });
-  for (let i = 0; i < Math.min(serviceCount, 3); i++) {
-    plans.push({
-      key: `service-${i}`,
-      prompt: `${scene(baseSeed + i + 1)}, ${spec.style}, ${hue} palette, ${GLOBAL_CONSTRAINTS}`,
-      width: 640,
-      height: 400,
-      seed: baseSeed + 17 * (i + 1),
-    });
-  }
+
+  plans.push(build("hero", baseSeed, 1200, 760, 0));
+  for (let i = 0; i < 4; i++) plans.push(build(`gallery-${i}`, baseSeed + i + 3, 600, 600, 31 * (i + 1)));
+  for (let i = 0; i < Math.min(serviceCount, 6); i++) plans.push(build(`service-${i}`, baseSeed + i + 1, 640, 460, 17 * (i + 1)));
   return plans;
 }
 
@@ -110,7 +109,7 @@ export class PollinationsImageAdapter implements ImageGenAdapter {
   ) {}
 
   async generate(req: ImageGenRequest): Promise<GeneratedImage> {
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${req.width}&height=${req.height}&seed=${req.seed}&nologo=true`;
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(req.prompt)}?width=${req.width}&height=${req.height}&seed=${req.seed}&nologo=true&model=flux`;
     return withRetry(
       async () => {
         const res = await this.fetchImpl(url, { signal: AbortSignal.timeout(90_000) });

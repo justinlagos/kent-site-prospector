@@ -6,6 +6,7 @@ import { type Logger } from "@ksp/shared";
 import { AuditFindings, AuditReport, emptyFindings } from "./types.js";
 import { computeScores, fleschKincaidGrade } from "./scores.js";
 import { mockAudit } from "./mock-audit.js";
+import { deriveBrandProfile } from "./brand.js";
 
 const USER_AGENT =
   "KentSiteProspectorAuditBot/1.0 (single-page website review; contact: see sending domain)";
@@ -99,6 +100,43 @@ export async function auditWebsite(
       // published contact email. Same robots.txt rules apply; failures are ignored.
       if (findings.foundEmails.length === 0) {
         await tryContactPage(page, findings, url, fetchImpl, opts.logger);
+      }
+
+      // Real brand signals (colours / fonts / logo) so the concept can be on-brand.
+      // Best-effort: any failure leaves brandProfile null and the renderer falls back.
+      try {
+        const raw = await page.evaluate(() => {
+          const bg = (el: Element | null) => (el ? getComputedStyle(el).backgroundColor : undefined);
+          const q = (sel: string) => document.querySelector(sel);
+          const header = q("header") ?? q("nav") ?? q(".header") ?? q(".navbar") ?? q("#header");
+          const btn =
+            q("a.btn") ?? q("button.btn") ?? q('[class*="btn"]') ?? q('a[class*="button"]') ??
+            q('[class*="cta"]') ?? q("button");
+          const link = q("nav a") ?? q("header a") ?? q("main a") ?? q("a");
+          const heading = q("h1") ?? q("h2");
+          const logo =
+            q('img[class*="logo" i]') ?? q('img[alt*="logo" i]') ?? q('img[src*="logo" i]') ??
+            q("header img") ?? q(".navbar img") ?? q(".header img");
+          const og = q('meta[property="og:image"]');
+          return {
+            headerBg: bg(header),
+            buttonBg: bg(btn),
+            linkColor: link ? getComputedStyle(link).color : undefined,
+            bodyBg: getComputedStyle(document.body).backgroundColor,
+            bodyText: getComputedStyle(document.body).color,
+            headingFont: heading ? getComputedStyle(heading).fontFamily : undefined,
+            bodyFont: getComputedStyle(document.body).fontFamily,
+            logoSrc:
+              (logo && logo.getAttribute("src")) ||
+              (og && og.getAttribute("content")) ||
+              undefined,
+          };
+        });
+        findings.brandProfile = deriveBrandProfile(raw, page.url());
+      } catch (brandErr) {
+        opts.logger.debug("brand extraction skipped", {
+          error: brandErr instanceof Error ? brandErr.message.slice(0, 120) : "unknown",
+        });
       }
 
       // Mobile overflow check + screenshots at three viewports.
