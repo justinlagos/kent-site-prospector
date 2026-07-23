@@ -110,7 +110,9 @@ export async function scoreProspect(
   const scale = (v: number, max: number) => Math.max(0, Math.min(max, Math.round(v)));
 
   const components: ComponentScores = {
-    websiteWeakness: scale(((audit?.opportunityScore ?? 0) / 100) * 25, 25),
+    // A business with NO website is the strongest possible case — max the weakness score
+    // so no-site prospects rank at the top. Otherwise scale by the audit's opportunity.
+    websiteWeakness: scale(audit && !audit.hasWebsite ? 25 : ((audit?.opportunityScore ?? 0) / 100) * 25, 25),
     commercialPotential: scale(
       (HIGH_INTENT_STRATEGIES.has(business.category.strategyKey) ? 12 : 8) +
         Math.min(8, (business.reviewCount ?? 0) / 15),

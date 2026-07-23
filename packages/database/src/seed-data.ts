@@ -121,7 +121,10 @@ export const DEFAULT_SETTINGS: Record<string, unknown> = {
   sendWindowStartHour: 10,
   sendWindowEndHour: 15,
   minProspectScore: 60,
-  minOpportunityScore: 15,
+  // Only pitch businesses whose sites have real, obvious problems. Set deliberately
+  // selective so well-built sites are disqualified rather than pursued. Tunable in the
+  // dashboard (Settings -> Minimum website-opportunity score); raise for stricter targeting.
+  minOpportunityScore: 40,
   previewExpiryDays: 30,
   followUpsEnabled: false,
   followUpMaxCount: 1,
